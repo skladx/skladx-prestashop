@@ -1,0 +1,15 @@
+/vendor/
+/node_modules/
+/.phpunit.cache/
+/.phpunit.result.cache
+/.php-cs-fixer.cache
+/config_*.xml
+/config.xml
+*.local.md
+.env
+.env.*
+*.zip
+*.sql
+*.log
+.DS_Store
+/composer.lock

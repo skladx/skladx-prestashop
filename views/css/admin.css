@@ -1,0 +1,45 @@
+/* SkladX for PrestaShop – back office. */
+.skladx-mark {
+	display: inline-block;
+	width: 26px;
+	height: 15px;
+	margin-right: 4px;
+	vertical-align: -1px;
+	background-color: currentColor;
+	-webkit-mask: url("../img/sx-mark.svg") no-repeat center / contain;
+	mask: url("../img/sx-mark.svg") no-repeat center / contain;
+}
+
+.skladx-order-box .skladx-dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin-bottom: 12px; }
+.skladx-order-box .skladx-dl dt { font-weight: 600; color: #6c868e; }
+.skladx-order-box .skladx-dl dd { margin: 0; word-break: break-word; }
+.skladx-order-box .skladx-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+.skladx-order-box .skladx-error { white-space: pre-wrap; word-break: break-word; }
+.skladx-order-box .skladx-payload pre { max-height: 320px; overflow: auto; font-size: 11px; background: #f8f9fa; padding: 8px; }
+.skladx-order-box .skladx-status { margin-left: 6px; background: #e5f0fa; color: #135e96; }
+.skladx-order-box .skladx-status--delivered,
+.skladx-order-box .skladx-status--handed_over,
+.skladx-order-box .skladx-status--in_transit,
+.skladx-order-box .skladx-status--out_for_delivery { background: #e6f4ea; color: #1e6b34; }
+.skladx-order-box .skladx-status--cancelled,
+.skladx-order-box .skladx-status--delivery_failed,
+.skladx-order-box .skladx-status--returned { background: #fbeaea; color: #8a2424; }
+.skladx-order-box .skladx-status--on_hold,
+.skladx-order-box .skladx-status--awaiting_stock { background: #fcf2d9; color: #8a5a00; }
+.skladx-track { margin-left: 6px; }
+
+.skladx-product-tab { padding: 8px 0; }
+.skladx-product-tab .skladx-units { max-width: 900px; }
+.skladx-product-result { margin-left: 8px; }
+
+.skladx-notices .skladx-notice { margin-bottom: 8px; }
+.skladx-notices__all { text-align: right; font-size: 12px; margin: -4px 0 8px; }
+
+.skladx-config .skladx-config-head { display: flex; align-items: center; gap: 12px; }
+.skladx-config .skladx-config-head img { width: 40px; height: 40px; }
+.skladx-config .table td, .skladx-config .table th { vertical-align: middle; }
+.skladx-config .skladx-url { font-family: monospace; font-size: 12px; }
+.skladx-config .skladx-checklist { columns: 2; max-width: 760px; }
+.skladx-config .skladx-checklist label { display: block; font-weight: normal; break-inside: avoid; }
+.skladx-config .skladx-buttons .btn { margin: 0 6px 6px 0; }
+.skladx-config .skladx-stats span { display: inline-block; margin-right: 16px; }
