@@ -4,7 +4,7 @@ PrestaShop module `skladx` that connects a shop with the **SkladX** fulfilment w
 
 - sends orders to SkladX when they reach chosen order states (database queue, idempotent, retries with backoff),
 - pickup point picker at checkout (Packeta and other pickup carriers, points from SkladX), the choice is stored on the order,
-- syncs products and combinations (reference = SKU, name, EAN-13, weight, dimensions, price, image, storage class) and optionally takes stock levels from SkladX,
+- syncs products and combinations right after they are saved (stable `external_id`, reference = SKU, name, EAN-13, weight, dimensions, price, images, storage class) and optionally takes stock levels from SkladX,
 - receives order status and tracking updates via signed webhooks (HMAC-SHA256) and a polling fallback,
 - maps SkladX statuses to order states, passes the tracking number to the order carrier and the customer ("In transit" e-mail with the tracking link),
 - shows a SkladX box on the order page (status, number, tracking with a *Track shipment* button, pickup point, last sync, Send/Resend, Refresh, Cancel in SkladX),
@@ -25,6 +25,8 @@ It is the PrestaShop counterpart of [skladx-woocommerce](https://github.com/skla
 3. Open *Modules → Module Manager → SkladX → Configure*.
 4. Add the cron job (see *Queue and cron*).
 
+**Upgrading:** replace the files and run *Upgrade* in the Module Manager or `php bin/console prestashop:module upgrade skladx` — the upgrade scripts in `upgrade/` add new hooks and columns (0.2.0 also queues a full product sync so SkladX learns the `external_id` of existing products).
+
 ## Configuration
 
 | Setting | Notes |
@@ -40,7 +42,7 @@ It is the PrestaShop counterpart of [skladx-woocommerce](https://github.com/skla
 | Carriers | Each carrier (by its `id_reference`, stable across carrier edits) maps to a SkladX carrier: `packeta`, `dpd_sk`, `gls_sk`, `sps`, `posta_sk`, `balikovo`. |
 | Pickup point | Ticking it attaches the carrier to this module (`is_module`, prices still from the carrier ranges): the checkout shows the picker under the carrier and requires a choice. |
 | Packeta widget API key | Optional: Packeta carriers open the official Packeta widget instead of the built-in picker; the point is still verified with SkladX. |
-| Product sync | On product/combination save (and *Sync all products*) → `POST /products` upsert by SKU. Products without a reference are skipped; unchanged payloads are not resent. Deleting a product archives it in SkladX. |
+| Product sync | On product/combination/image save (and *Sync all products*) → `POST /products` upsert by `external_id`, then by SKU. See *Product sync* below. Deleting a product archives it in SkladX. |
 | Storage class | Product page → *Modules* tab → *SkladX*: `ambient`, `chilled`, `frozen`, `hazardous`, `hanging_garment`, `oversize`, `high_value` or a code of your warehouse; sent as `storage_class`. The section also shows the sync state per combination and has *Sync to SkladX now*. |
 | Stock sync | Off by default. When on, SkladX is the source of truth: `stock.changed` / `product.*` events set the available quantity to SkladX `available` (on hand − reserved) minus units of shop orders SkladX does not have yet. Turning it on (or *Take over stock from SkladX now*) pulls all levels via `GET /stock`. Older events never overwrite newer ones. |
 | Debug log | `var/logs/skladx-YYYY-MM-DD.log`, secrets masked. Errors are always logged, also to *Advanced parameters → Logs*. |
@@ -50,6 +52,15 @@ It is the PrestaShop counterpart of [skladx-woocommerce](https://github.com/skla
 `reference` = PrestaShop order reference (`REFERENCE-id` when one cart was split into several orders), items by SKU (duplicate SKUs merged, `unit_price_cents` incl. tax), delivery address (invoice address as fallback), `carrier`, `pickup_point_id`, `cod_cents`, `total_cents`, `currency`, `customer_email`, `customer_phone` (mobile first), `note` (checkout message) and `metadata: {ps_order_id, ps_order_reference, site}`.
 
 The `Idempotency-Key` is `ps:<host>:order:<id>`; after a rejected attempt (4xx) a revision suffix `:r<n>` is added so the corrected order can be sent again. Network errors, 429 and 5xx are retried after 1, 5, 15, 60, 180 and 360 minutes; validation errors (422) stop, are written to the order messages and the SkladX box and show an admin notice. If SkladX already has the reference and it belongs to this order (lost response), the module links it instead of failing.
+
+### Product sync
+
+- **Stable link (`external_id`).** Every stock unit is sent with `external_id` = `ps:{id_shop}:{id_product}:{id_product_attribute}` (`id_product_attribute` = 0 for a product without combinations; every combination is its own SkladX product; `id_shop` = the product's default shop — the module settings are global, so one SkladX environment serves all shops). SkladX finds the product by `external_id` first and by SKU second. Order items carry the same `external_id` (`id_shop` of the order) next to `sku`.
+- **SKU rename.** Changing the reference of a product SkladX already knows renames its SKU in SkladX — stock and history stay with it.
+- **SKU conflict.** If the new reference already belongs to another SkladX product, SkladX answers `409 sku_conflict`. The module stores the error (which SkladX product owns the SKU: SKU, name, id, and its shop link), shows it in the product's SkladX section (per combination) and as a back office notice, and **does not retry**: the same payload is not sent again until the product changes or you click *Sync to SkladX now* / *Sync all products*. Fix the reference in PrestaShop or resolve the duplicate in SkladX.
+- **Immediate sync with queue fallback.** Saved products are collected during the request (de-duplicated) and pushed when it ends — after the response under PHP-FPM — with an 8 s timeout. When SkladX is unreachable (network error, 429, 5xx) the product goes to the queue and is retried after 1, 5, 15, 60, 180 and 360 minutes. At most 20 products are pushed per request; a bigger batch (CSV import) is handed to the queue. Other errors (e.g. 422) are shown on the product and in a notice; the next save sends again.
+- **Triggers.** Product add/update (`actionObjectProduct*`, `actionProductAdd`, `actionProductUpdate`, `actionProductSave` — legacy and PrestaShop 8/9 product pages, webservice, CSV import), combinations (`actionObjectCombination*`, `actionProductAttributeUpdate`, the 8/9 combination endpoints), images (`actionObjectImage*`). A product or combination without a reference is skipped and sent as soon as it gets one.
+- **Images.** `image_url` = the cover (the combination's image when it has one, else the product cover) in the *large* image type, absolute and HTTPS when SSL is on; `images` = up to 10 other images of the unit.
 
 Hooks for other modules: `actionSkladxOrderPayload`, `actionSkladxProductPayload`, `actionSkladxInboundPayload` (params: `payload` by reference).
 
@@ -103,7 +114,7 @@ Removes the `SKLADX_*` configuration, the module tables (order links, queue, eve
 
 ```bash
 composer install            # dev only: PHPUnit, php-cs-fixer (PrestaShop coding standards)
-composer test               # unit tests: payload mapping, signature, status mapping, pickup points, receipts, bulk paste, stock events, backoff, translations
+composer test               # unit tests: payload mapping, external_id, SKU conflicts, signature, status mapping, pickup points, receipts, bulk paste, stock events, backoff, translations
 composer cs-fix             # PrestaShop php-cs-fixer config
 php dev/i18n.php            # build translations/sk.php from dev/sk.php (php dev/i18n.php --check lists missing strings)
 ```
@@ -126,6 +137,8 @@ Požiadavky: PrestaShop 8.0–9.x, PHP 8.1+ s cURL. Bez runtime závislostí Com
 2. Nainštalujte **SkladX** a otvorte *Nastaviť*.
 3. Pridajte cron (URL je v nastaveniach modulu), napr. každú minútu `curl -fsS "https://vas-obchod/module/skladx/cron?token=…"`.
 
+**Aktualizácia:** nahraďte súbory a spustite *Aktualizovať* v Správcovi modulov alebo `php bin/console prestashop:module upgrade skladx` – skripty v `upgrade/` doplnia nové hooky a stĺpce (0.2.0 navyše zaradí synchronizáciu všetkých produktov, aby SkladX poznal `external_id` existujúcich produktov).
+
 ### Nastavenie
 
 - **Základná URL API** – predvolene `https://skladx.sk/api/v1`.
@@ -136,9 +149,18 @@ Požiadavky: PrestaShop 8.0–9.x, PHP 8.1+ s cURL. Bez runtime závislostí Com
 - **Stav SkladX → stav objednávky** – každá zmena je súkromná správa k objednávke; predvolene `handed_over` → *Odoslaná*, `delivered` → *Doručená*, `cancelled` → *Zrušená*.
 - **E-mail so sledovaním** – číslo zásielky sa uloží k dopravcovi objednávky a zákazník dostane e-mail *Na ceste* s odkazom.
 - **Dopravcovia** – každý dopravca (podľa `id_reference`) sa mapuje na `packeta`, `dpd_sk`, `gls_sk`, `sps`, `posta_sk`, `balikovo`. Stĺpec **Výdajné miesto** pripojí dopravcu k modulu: v pokladni sa pod ním zobrazí výber výdajného miesta (vyhľadávanie, *V mojom okolí*, otváracie hodiny, mapa) a výber je povinný. Miesta sa načítavajú cez proxy modulu (API kľúč sa do prehliadača nedostane), výber overí SkladX a uloží sa k objednávke.
-- **Synchronizácia produktov** – pri uložení produktu/kombinácie (kód = SKU, názov, EAN-13, hmotnosť, rozmery, cena, obrázok, skladová trieda). Skladová trieda sa nastavuje na stránke produktu v záložke *Moduly → SkladX*.
+- **Synchronizácia produktov** – hneď po uložení produktu, kombinácie alebo obrázka (kód = SKU, názov, EAN-13, hmotnosť, rozmery, cena, obrázky, skladová trieda). Skladová trieda sa nastavuje na stránke produktu v záložke *Moduly → SkladX*. Podrobnosti v časti *Synchronizácia produktov* nižšie.
 - **Synchronizácia zásob** – predvolene vypnutá; po zapnutí je zdrojom pravdy SkladX (dostupné = na sklade − rezervované, mínus kusy objednávok, ktoré ešte nie sú v SkladX).
 - **Ladiaci log** – `var/logs/skladx-RRRR-MM-DD.log`, tajné údaje maskované.
+
+### Synchronizácia produktov
+
+- **Stabilné prepojenie (`external_id`).** Každá skladová položka sa posiela s `external_id` = `ps:{id_shop}:{id_product}:{id_product_attribute}` (`id_product_attribute` = 0 pre produkt bez kombinácií; každá kombinácia je samostatný produkt v SkladX; `id_shop` = predvolený obchod produktu). SkladX hľadá produkt najprv podľa `external_id`, potom podľa SKU. Položky objednávok posielajú rovnaké `external_id` (s `id_shop` objednávky) spolu so `sku`.
+- **Premenovanie SKU.** Zmena kódu produktu, ktorý SkladX už pozná, premenuje jeho SKU v SkladX – zásoby aj história zostanú.
+- **Konflikt SKU.** Ak nový kód už patrí inému produktu v SkladX, SkladX vráti `409 sku_conflict`. Modul uloží chybu (ktorý produkt SkladX má toto SKU: SKU, názov, id), zobrazí ju v sekcii SkladX pri produkte (po kombináciách) aj ako upozornenie v administrácii a **neopakuje ju**: rovnaké údaje sa znova neodošlú, kým sa produkt nezmení alebo kým nekliknete *Synchronizovať do SkladX teraz* / *Synchronizovať všetky produkty*. Opravte kód v PrestaShope alebo duplicitu v SkladX.
+- **Okamžité odoslanie so zálohou vo fronte.** Uložené produkty sa počas požiadavky zbierajú (bez duplicít) a odošlú sa na jej konci (pri PHP-FPM po odoslaní odpovede) s 8 s timeoutom. Ak SkladX nie je dostupný (sieť, 429, 5xx), produkt ide do fronty a odoslanie sa opakuje po 1, 5, 15, 60, 180 a 360 minútach. Naraz sa odošle najviac 20 produktov, zvyšok (napr. CSV import) spracuje fronta. Iné chyby (napr. 422) sa zobrazia pri produkte a v upozornení; ďalšie uloženie odošle produkt znova.
+- **Spúšťače.** Pridanie a úprava produktu (stará aj nová stránka produktu v PrestaShope 8/9, webservice, CSV import), kombinácie a obrázky. Produkt alebo kombinácia bez kódu sa preskočí a odošle sa, hneď ako kód dostane.
+- **Obrázky.** `image_url` = titulný obrázok (obrázok kombinácie, ak ho má) vo veľkosti *large*, absolútna adresa s HTTPS; `images` = najviac 10 ďalších obrázkov.
 
 ### Box SkladX pri objednávke
 

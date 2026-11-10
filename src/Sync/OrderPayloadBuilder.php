@@ -20,7 +20,7 @@ if (!defined('_PS_VERSION_')) {
  *
  * Snapshot:
  * `{id, reference, shared_reference, currency, total, payment_module, customer_note, email,
- *   delivery: Address, invoice: Address, items: [{sku, name, quantity, total}],
+ *   delivery: Address, invoice: Address, items: [{sku, external_id, name, quantity, total}],
  *   carrier_reference, pickup_point_id}`
  * Address: `{firstname, lastname, company, address1, address2, city, postcode, country, phone, phone_mobile}`
  *
@@ -60,8 +60,10 @@ final class OrderPayloadBuilder
                 continue;
             }
 
+            $externalId = trim((string) ($item['external_id'] ?? ''));
             $items[$sku] = [
                 'sku' => $sku,
+                'external_id' => $externalId !== '' ? mb_substr($externalId, 0, 191) : null,
                 'name' => mb_substr($name, 0, 255),
                 'quantity' => $quantity,
                 'line_total' => (float) ($item['total'] ?? 0),
@@ -73,12 +75,13 @@ final class OrderPayloadBuilder
         }
 
         $items = array_values(array_map(
-            static fn (array $item): array => [
+            static fn (array $item): array => array_filter([
                 'sku' => $item['sku'],
+                'external_id' => $item['external_id'],
                 'name' => $item['name'],
                 'quantity' => $item['quantity'],
                 'unit_price_cents' => self::cents($item['line_total'] / $item['quantity']),
-            ],
+            ], static fn ($value): bool => $value !== null),
             $items
         ));
 

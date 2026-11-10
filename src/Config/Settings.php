@@ -23,7 +23,7 @@ if (!defined('_PS_VERSION_')) {
  */
 final class Settings
 {
-    public const MODULE_VERSION = '0.1.0';
+    public const MODULE_VERSION = '0.2.0';
 
     public const DEFAULT_API_URL = 'https://skladx.sk/api/v1';
 

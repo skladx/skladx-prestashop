@@ -19,12 +19,16 @@ if (!defined('_PS_VERSION_')) {
  * `POST /products` payload and converts units: weight → grams, dimensions →
  * millimetres, price → cents. Pure PHP — unit tested.
  *
- * Snapshot: `{sku, name, ean, weight, length, width, height, price, image_url, archived, storage_class}`.
+ * Snapshot: `{external_id, sku, name, ean, weight, length, width, height, price, image_url, images, archived, storage_class}`
+ * (`external_id` = ExternalId::forUnit(), `images` = other image URLs).
  */
 final class ProductPayloadBuilder
 {
     /** Built-in SkladX storage classes (a warehouse may define its own codes too). */
     public const STORAGE_CLASSES = ['ambient', 'chilled', 'frozen', 'hazardous', 'hanging_garment', 'oversize', 'high_value'];
+
+    /** Most additional images sent besides the main one. */
+    public const MAX_IMAGES = 10;
 
     /** Grams per shop weight unit (PS_WEIGHT_UNIT). */
     private const WEIGHT_TO_GRAMS = [
@@ -78,22 +82,51 @@ final class ProductPayloadBuilder
         $weight = self::convert($product['weight'] ?? '', self::WEIGHT_TO_GRAMS[strtolower(trim($weightUnit))] ?? null);
         $name = trim((string) ($product['name'] ?? ''));
         $storageClass = self::storageClass((string) ($product['storage_class'] ?? ''));
-        $image = (string) ($product['image_url'] ?? '');
+        $images = self::images($product['image_url'] ?? '', $product['images'] ?? []);
+        $image = array_shift($images);
+        $externalId = trim((string) ($product['external_id'] ?? ''));
 
         $payload = [
             'sku' => mb_substr($sku, 0, 64),
+            'external_id' => $externalId !== '' ? mb_substr($externalId, 0, 191) : null,
             'name' => mb_substr($name !== '' ? $name : $sku, 0, 255),
             'ean' => $ean !== '' && $ean !== '0' ? mb_substr($ean, 0, 32) : null,
             'weight_grams' => $weight !== null && $weight > 0 ? $weight : null,
             'dimensions_mm' => $dimensions !== [] ? $dimensions : null,
             'price_cents' => $price,
             'currency' => $price !== null && $currency !== '' ? strtoupper($currency) : null,
-            'image_url' => preg_match('~^https?://~i', $image) ? $image : null,
+            'image_url' => $image,
+            'images' => $images !== [] ? $images : null,
             'storage_class' => $storageClass !== '' ? $storageClass : null,
             'archived' => (bool) ($product['archived'] ?? false),
         ];
 
         return array_filter($payload, static fn ($value): bool => $value !== null);
+    }
+
+    /**
+     * Main image first, then up to MAX_IMAGES other images: absolute http(s)
+     * URLs only, without duplicates. When the main image is missing the
+     * first other image takes its place.
+     *
+     * @param mixed $main main image URL
+     * @param mixed $others other image URLs
+     *
+     * @return list<string> empty when there is no image
+     */
+    public static function images($main, $others): array
+    {
+        $urls = [];
+
+        foreach (array_merge([$main], is_array($others) ? array_values($others) : []) as $url) {
+            $url = is_string($url) ? trim($url) : '';
+
+            if ($url !== '' && preg_match('~^https?://[^/\s]+~i', $url) && !in_array($url, $urls, true)) {
+                $urls[] = $url;
+            }
+        }
+
+        return array_slice($urls, 0, self::MAX_IMAGES + 1);
     }
 
     /**

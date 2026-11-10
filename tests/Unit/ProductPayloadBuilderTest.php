@@ -99,6 +99,42 @@ final class ProductPayloadBuilderTest extends TestCase
         $this->assertTrue(ProductPayloadBuilder::build($this->product(['archived' => true]), 'kg', 'cm', 'EUR')['archived']);
     }
 
+    public function testSendsTheExternalIdAndImages(): void
+    {
+        $payload = ProductPayloadBuilder::build($this->product([
+            'external_id' => 'ps:1:42:7',
+            'images' => [
+                'https://shop.example/9-large_default/probiotika.jpg',
+                'https://shop.example/8-large_default/probiotika.jpg',
+                '/img/relative.jpg',
+                'https://shop.example/9-large_default/probiotika.jpg',
+                'https://shop.example/10-large_default/probiotika.jpg',
+            ],
+        ]), 'kg', 'cm', 'EUR');
+
+        $this->assertSame('ps:1:42:7', $payload['external_id']);
+        $this->assertSame(['sku', 'external_id'], array_slice(array_keys($payload), 0, 2));
+        $this->assertSame('https://shop.example/8-large_default/probiotika.jpg', $payload['image_url']);
+        $this->assertSame([
+            'https://shop.example/9-large_default/probiotika.jpg',
+            'https://shop.example/10-large_default/probiotika.jpg',
+        ], $payload['images']);
+    }
+
+    public function testImagesAreLimitedAndTheFirstReplacesAMissingMainImage(): void
+    {
+        $others = array_map(static fn (int $i): string => 'https://shop.example/' . $i . '-large_default/p.jpg', range(1, 14));
+        $payload = ProductPayloadBuilder::build($this->product(['image_url' => '', 'images' => $others]), 'kg', 'cm', 'EUR');
+
+        $this->assertSame('https://shop.example/1-large_default/p.jpg', $payload['image_url']);
+        $this->assertCount(ProductPayloadBuilder::MAX_IMAGES, $payload['images']);
+        $this->assertSame('https://shop.example/11-large_default/p.jpg', end($payload['images']));
+
+        $none = ProductPayloadBuilder::build($this->product(['image_url' => '', 'images' => []]), 'kg', 'cm', 'EUR');
+        $this->assertArrayNotHasKey('image_url', $none);
+        $this->assertArrayNotHasKey('images', $none);
+    }
+
     public function testRequiresASku(): void
     {
         $this->expectException(MappingException::class);

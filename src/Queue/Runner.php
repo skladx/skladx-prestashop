@@ -183,7 +183,7 @@ final class Runner
                 OrderExporter::export((int) $job['ref'], $job['attempts']);
                 break;
             case Queue::PRODUCT_SYNC:
-                ProductSync::sync((int) $job['ref']);
+                ProductSync::syncQueued((int) $job['ref'], $job['attempts']);
                 break;
             case Queue::PRODUCTS_ALL:
                 ProductSync::syncBatch($job['payload']);

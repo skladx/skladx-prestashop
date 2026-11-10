@@ -118,6 +118,20 @@ final class OrderPayloadBuilderTest extends TestCase
         $this->assertSame('16', OrderPayloadBuilder::reference(['id' => 16, 'reference' => '']));
     }
 
+    public function testItemsCarryTheExternalIdOfTheOrderLine(): void
+    {
+        $payload = OrderPayloadBuilder::build($this->snapshot(['items' => [
+            ['sku' => 'KOL-300', 'external_id' => 'ps:1:12:0', 'name' => 'Kolagén', 'quantity' => 2, 'total' => 49.8],
+            ['sku' => 'TRI-M', 'external_id' => 'ps:1:15:31', 'name' => 'Tričko M', 'quantity' => 1, 'total' => 15.0],
+            ['sku' => 'TRI-M', 'external_id' => 'ps:1:15:31', 'name' => 'Tričko M', 'quantity' => 1, 'total' => 15.0],
+        ]]), $this->config());
+
+        $this->assertSame([
+            ['sku' => 'KOL-300', 'external_id' => 'ps:1:12:0', 'name' => 'Kolagén', 'quantity' => 2, 'unit_price_cents' => 2490],
+            ['sku' => 'TRI-M', 'external_id' => 'ps:1:15:31', 'name' => 'Tričko M', 'quantity' => 2, 'unit_price_cents' => 1500],
+        ], $payload['items']);
+    }
+
     public function testMergesDuplicateSkusAndSkipsZeroQuantities(): void
     {
         $payload = OrderPayloadBuilder::build($this->snapshot(['items' => [

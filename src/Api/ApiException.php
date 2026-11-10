@@ -46,6 +46,14 @@ class ApiException extends \RuntimeException
     }
 
     /**
+     * 409 `sku_conflict` of `POST /products`: the SKU belongs to another SkladX product.
+     */
+    public function isSkuConflict(): bool
+    {
+        return $this->status === 409 && $this->errorCode === 'sku_conflict';
+    }
+
+    /**
      * Field validation errors from a 422 `validation_failed` response.
      *
      * @return array<string, list<string>>

@@ -22,7 +22,10 @@ final class Backoff
     /** Seconds before retry n+1 of an order export: 1, 5, 15, 60, 180, 360 minutes. */
     public const ORDER_EXPORT = [60, 300, 900, 3600, 10800, 21600];
 
-    /** Seconds before retry n+1 of other jobs (product sync, stock pull, events). */
+    /** Seconds before retry n+1 of a product sync that failed with a network error, 429 or 5xx: 1, 5, 15, 60, 180, 360 minutes. */
+    public const PRODUCT_SYNC = [60, 300, 900, 3600, 10800, 21600];
+
+    /** Seconds before retry n+1 of other jobs (stock pull, events). */
     public const DEFAULT = [300, 900, 3600];
 
     /**

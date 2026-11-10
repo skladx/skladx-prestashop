@@ -30,13 +30,19 @@ final class Client
 {
     private const TIMEOUT = 20;
 
-    public function __construct(private readonly string $baseUrl, private readonly string $apiKey)
+    /**
+     * @param int $timeout total request timeout in seconds
+     */
+    public function __construct(private readonly string $baseUrl, private readonly string $apiKey, private readonly int $timeout = self::TIMEOUT)
     {
     }
 
-    public static function fromSettings(): self
+    /**
+     * @param int|null $timeout shorter timeout for calls made while a request is still running
+     */
+    public static function fromSettings(?int $timeout = null): self
     {
-        return new self(Settings::apiUrl(), Settings::apiKey());
+        return new self(Settings::apiUrl(), Settings::apiKey(), $timeout ?? self::TIMEOUT);
     }
 
     /**
@@ -78,7 +84,7 @@ final class Client
     }
 
     /**
-     * Create or update a product by SKU.
+     * Create or update a product (matched by external_id, then by SKU).
      *
      * @param array<string, mixed> $payload
      *
@@ -312,8 +318,8 @@ final class Client
         curl_setopt_array($curl, [
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => self::TIMEOUT,
-            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => max(1, $this->timeout),
+            CURLOPT_CONNECTTIMEOUT => max(1, min(10, intdiv($this->timeout, 2))),
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,

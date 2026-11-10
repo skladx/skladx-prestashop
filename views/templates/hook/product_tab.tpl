@@ -10,7 +10,17 @@
   {if !$skladx_configured}
     <p class="text-muted">{l s='SkladX is not configured yet.' mod='skladx'}</p>
   {else}
-    <p class="text-muted">{l s='SkladX matches products by their reference (SKU). Products with combinations are sent per combination; every combination needs its own reference. EAN, weight, dimensions and price are taken from the product.' mod='skladx'}</p>
+    {if $skladx_errors}
+      <div class="alert alert-danger skladx-product-errors">
+        <p><strong>{l s='SkladX could not take over this product:' mod='skladx'}</strong></p>
+        <ul>
+          {foreach $skladx_errors as $unit}
+            <li>{if $unit.sku}<code>{$unit.sku|escape:'html':'UTF-8'}</code> – {/if}{$unit.error|escape:'html':'UTF-8'}{if $unit.conflict} <em>({l s='not retried automatically' mod='skladx'})</em>{/if}</li>
+          {/foreach}
+        </ul>
+      </div>
+    {/if}
+    <p class="text-muted">{l s='SkladX links every product and combination by its shop ID (external_id) and its reference (SKU). Products with combinations are sent per combination; every combination needs its own reference. Changing the reference renames the SKU in SkladX. EAN, weight, dimensions, price and images are taken from the product.' mod='skladx'}</p>
     <div class="form-group">
       <label for="skladx-storage-class">{l s='Storage class in the warehouse' mod='skladx'}</label>
       <select id="skladx-storage-class" class="form-control skladx-storage-class" style="max-width: 320px">
@@ -29,9 +39,9 @@
         {foreach $skladx_units as $unit}
           <tr>
             <td>{$unit.name|escape:'html':'UTF-8'}</td>
-            <td>{if $unit.sku}<code>{$unit.sku|escape:'html':'UTF-8'}</code>{else}<span class="text-danger">{l s='missing – not sent' mod='skladx'}</span>{/if}</td>
+            <td>{if $unit.sku}<code>{$unit.sku|escape:'html':'UTF-8'}</code>{else}<span class="text-danger">{l s='missing – not sent' mod='skladx'}</span>{/if}<br><small class="text-muted" title="external_id">{$unit.external_id|escape:'html':'UTF-8'}</small></td>
             <td>{$unit.ean|escape:'html':'UTF-8'}</td>
-            <td>{if $unit.error}<span class="text-danger">{$unit.error|escape:'html':'UTF-8'}</span>{elseif $unit.synced_at}{$unit.synced_at|escape:'html':'UTF-8'}{else}—{/if}</td>
+            <td>{if $unit.error}<span class="text-danger">{if $unit.conflict}<strong>{l s='SKU conflict' mod='skladx'}:</strong> {/if}{$unit.error|escape:'html':'UTF-8'}</span>{elseif $unit.synced_at}{$unit.synced_at|escape:'html':'UTF-8'}{else}—{/if}</td>
           </tr>
         {/foreach}
       </tbody>

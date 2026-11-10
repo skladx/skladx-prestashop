@@ -72,6 +72,7 @@ final class Installer
                 `synced_at` INT UNSIGNED NOT NULL DEFAULT 0,
                 `sync_hash` CHAR(32) NOT NULL DEFAULT \'\',
                 `sync_error` TEXT NULL,
+                `sync_error_code` VARCHAR(32) NOT NULL DEFAULT \'\',
                 `stock_event_id` VARCHAR(64) NOT NULL DEFAULT \'\',
                 PRIMARY KEY (`id_product`, `id_product_attribute`)
             )',

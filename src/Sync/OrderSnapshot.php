@@ -31,6 +31,7 @@ final class OrderSnapshot
 
             $items[] = [
                 'sku' => (string) $detail['product_reference'],
+                'external_id' => ExternalId::forUnit((int) $order->id_shop, (int) $detail['product_id'], (int) $detail['product_attribute_id']),
                 'name' => (string) $detail['product_name'],
                 'quantity' => max(0, $quantity),
                 'total' => $quantity > 0 ? (float) $detail['unit_price_tax_incl'] * $quantity : 0.0,

@@ -23,8 +23,13 @@ final class ProductRepository
 {
     public const TABLE = 'skladx_product';
 
+    /** Column added in 0.2.0 (upgrade/upgrade-0.2.0.php). */
+    public const ERROR_CODE_COLUMN = 'sync_error_code';
+
+    private static ?bool $hasErrorCode = null;
+
     /**
-     * @return array{storage_class: string, synced_at: int, sync_hash: string, sync_error: string, stock_event_id: string}
+     * @return array{storage_class: string, synced_at: int, sync_hash: string, sync_error: string, sync_error_code: string, stock_event_id: string}
      */
     public static function get(int $idProduct, int $idProductAttribute = 0): array
     {
@@ -35,6 +40,7 @@ final class ProductRepository
             'synced_at' => (int) ($row['synced_at'] ?? 0),
             'sync_hash' => (string) ($row['sync_hash'] ?? ''),
             'sync_error' => (string) ($row['sync_error'] ?? ''),
+            'sync_error_code' => (string) ($row[self::ERROR_CODE_COLUMN] ?? ''),
             'stock_event_id' => (string) ($row['stock_event_id'] ?? ''),
         ];
     }
@@ -45,12 +51,44 @@ final class ProductRepository
     public static function save(int $idProduct, int $idProductAttribute, array $values): void
     {
         $row = array_merge(self::get($idProduct, $idProductAttribute), $values);
+        $withCode = self::hasErrorCodeColumn();
 
         \Db::getInstance()->execute(
-            'REPLACE INTO `' . _DB_PREFIX_ . self::TABLE . '` (`id_product`, `id_product_attribute`, `storage_class`, `synced_at`, `sync_hash`, `sync_error`, `stock_event_id`) VALUES ('
+            'REPLACE INTO `' . _DB_PREFIX_ . self::TABLE . '` (`id_product`, `id_product_attribute`, `storage_class`, `synced_at`, `sync_hash`, `sync_error`, ' . ($withCode ? '`' . self::ERROR_CODE_COLUMN . '`, ' : '') . '`stock_event_id`) VALUES ('
             . $idProduct . ', ' . $idProductAttribute . ', \'' . pSQL((string) $row['storage_class']) . '\', ' . (int) $row['synced_at'] . ', \''
-            . pSQL((string) $row['sync_hash']) . '\', \'' . pSQL((string) $row['sync_error'], true) . '\', \'' . pSQL((string) $row['stock_event_id']) . '\')'
+            . pSQL((string) $row['sync_hash']) . '\', \'' . pSQL((string) $row['sync_error'], true) . '\', '
+            . ($withCode ? '\'' . pSQL(mb_substr((string) $row['sync_error_code'], 0, 32)) . '\', ' : '')
+            . '\'' . pSQL((string) $row['stock_event_id']) . '\')'
         );
+    }
+
+    /**
+     * Whether the 0.2.0 column exists (the module files may be deployed
+     * before `prestashop:module upgrade` ran).
+     */
+    public static function hasErrorCodeColumn(bool $refresh = false): bool
+    {
+        if (self::$hasErrorCode === null || $refresh) {
+            $rows = \Db::getInstance()->executeS('SHOW COLUMNS FROM `' . _DB_PREFIX_ . self::TABLE . '` LIKE \'' . self::ERROR_CODE_COLUMN . '\'', true, false);
+            self::$hasErrorCode = is_array($rows) && $rows !== [];
+        }
+
+        return self::$hasErrorCode;
+    }
+
+    /**
+     * Adds the 0.2.0 column to an existing table.
+     */
+    public static function addErrorCodeColumn(): bool
+    {
+        if (self::hasErrorCodeColumn(true)) {
+            return true;
+        }
+
+        $done = (bool) \Db::getInstance()->execute('ALTER TABLE `' . _DB_PREFIX_ . self::TABLE . '` ADD `' . self::ERROR_CODE_COLUMN . '` VARCHAR(32) NOT NULL DEFAULT \'\' AFTER `sync_error`');
+        self::hasErrorCodeColumn(true);
+
+        return $done;
     }
 
     public static function storageClass(int $idProduct): string

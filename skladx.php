@@ -46,6 +46,14 @@ class Skladx extends Module
         'actionObjectProductDeleteBefore',
         'actionObjectCombinationAddAfter',
         'actionObjectCombinationUpdateAfter',
+        // 0.2.0: product page, CQRS commands, webservice and CSV import fire different ones; ids are de-duplicated per request.
+        'actionProductAdd',
+        'actionProductUpdate',
+        'actionProductSave',
+        'actionProductAttributeUpdate',
+        'actionObjectImageAddAfter',
+        'actionObjectImageUpdateAfter',
+        'actionObjectImageDeleteAfter',
         'displayAdminOrderSide',
         'displayAdminProductsExtra',
         'displayCarrierExtraContent',
@@ -182,7 +190,7 @@ class Skladx extends Module
      */
     public function hookActionObjectProductAddAfter(array $params): void
     {
-        $this->queueProduct($params['object'] ?? null);
+        $this->scheduleProduct($params['object'] ?? null);
     }
 
     /**
@@ -190,7 +198,31 @@ class Skladx extends Module
      */
     public function hookActionObjectProductUpdateAfter(array $params): void
     {
-        $this->queueProduct($params['object'] ?? null);
+        $this->scheduleProduct($params['object'] ?? null);
+    }
+
+    /**
+     * @param array<string, mixed> $params id_product, product
+     */
+    public function hookActionProductAdd(array $params): void
+    {
+        ProductSync::schedule((int) ($params['id_product'] ?? 0));
+    }
+
+    /**
+     * @param array<string, mixed> $params id_product, product
+     */
+    public function hookActionProductUpdate(array $params): void
+    {
+        ProductSync::schedule((int) ($params['id_product'] ?? 0));
+    }
+
+    /**
+     * @param array<string, mixed> $params id_product, product
+     */
+    public function hookActionProductSave(array $params): void
+    {
+        ProductSync::schedule((int) ($params['id_product'] ?? 0));
     }
 
     /**
@@ -213,7 +245,7 @@ class Skladx extends Module
         $combination = $params['object'] ?? null;
 
         if ($combination instanceof Combination) {
-            Runner::runAfterResponse(ProductSync::queue((int) $combination->id_product));
+            ProductSync::schedule((int) $combination->id_product);
         }
     }
 
@@ -223,6 +255,50 @@ class Skladx extends Module
     public function hookActionObjectCombinationUpdateAfter(array $params): void
     {
         $this->hookActionObjectCombinationAddAfter($params);
+    }
+
+    /**
+     * Legacy combination save (Product::updateAttribute and friends).
+     *
+     * @param array<string, mixed> $params id_product_attribute
+     */
+    public function hookActionProductAttributeUpdate(array $params): void
+    {
+        $idProductAttribute = (int) ($params['id_product_attribute'] ?? 0);
+
+        if ($idProductAttribute > 0) {
+            ProductSync::schedule((int) Db::getInstance()->getValue('SELECT `id_product` FROM `' . _DB_PREFIX_ . 'product_attribute` WHERE `id_product_attribute` = ' . $idProductAttribute, false));
+        }
+    }
+
+    /**
+     * Images are part of the payload (image_url, images).
+     *
+     * @param array<string, mixed> $params object
+     */
+    public function hookActionObjectImageAddAfter(array $params): void
+    {
+        $image = $params['object'] ?? null;
+
+        if ($image instanceof Image) {
+            ProductSync::schedule((int) $image->id_product);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $params object
+     */
+    public function hookActionObjectImageUpdateAfter(array $params): void
+    {
+        $this->hookActionObjectImageAddAfter($params);
+    }
+
+    /**
+     * @param array<string, mixed> $params object
+     */
+    public function hookActionObjectImageDeleteAfter(array $params): void
+    {
+        $this->hookActionObjectImageAddAfter($params);
     }
 
     /**
@@ -238,10 +314,10 @@ class Skladx extends Module
     /**
      * @param mixed $product
      */
-    private function queueProduct($product): void
+    private function scheduleProduct($product): void
     {
         if ($product instanceof Product && Validate::isLoadedObject($product)) {
-            Runner::runAfterResponse(ProductSync::queue((int) $product->id));
+            ProductSync::schedule((int) $product->id);
         }
     }
 
