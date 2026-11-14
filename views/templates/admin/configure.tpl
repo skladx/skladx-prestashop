@@ -183,6 +183,23 @@
         </div>
       </div>
       <div class="form-group">
+        <label class="control-label col-lg-3">{l s='Periodic product check' mod='skladx'}</label>
+        <div class="col-lg-9">
+          <label class="checkbox-inline"><input type="checkbox" name="SKLADX_PRODUCT_CHECK" value="1"{if $skladx_product_check} checked{/if}> {l s='Regularly send products SkladX does not have yet or that changed' mod='skladx'}</label>
+          <div class="form-inline" style="margin-top:6px">
+            <label for="skladx-product-check-interval">{l s='Check every' mod='skladx'}</label>
+            <select name="SKLADX_PRODUCT_CHECK_INTERVAL" id="skladx-product-check-interval" class="form-control fixed-width-lg">
+              <option value="1"{if $skladx_product_check_interval == 1} selected{/if}>{l s='hour' mod='skladx'}</option>
+              <option value="6"{if $skladx_product_check_interval == 6} selected{/if}>{l s='6 hours' mod='skladx'}</option>
+              <option value="12"{if $skladx_product_check_interval == 12} selected{/if}>{l s='12 hours' mod='skladx'}</option>
+              <option value="24"{if $skladx_product_check_interval == 24} selected{/if}>{l s='day' mod='skladx'}</option>
+              <option value="168"{if $skladx_product_check_interval == 168} selected{/if}>{l s='week' mod='skladx'}</option>
+            </select>
+          </div>
+          <p class="help-block">{l s='Catches products added by imports that skip PrestaShop hooks or whose push failed, so the warehouse can receive new goods a client brings without a receipt. Unchanged products cost no request. Runs from the module cron.' mod='skladx'}{if $skladx_last_product_check} {l s='Last check:' mod='skladx'} {$skladx_last_product_check|date_format:'%d.%m.%Y %H:%M'|escape:'html':'UTF-8'}{/if}</p>
+        </div>
+      </div>
+      <div class="form-group">
         <label class="control-label col-lg-3">{l s='Stock sync' mod='skladx'}</label>
         <div class="col-lg-9">
           <label class="checkbox-inline"><input type="checkbox" name="SKLADX_STOCK_SYNC" value="1"{if $skladx_stock_sync} checked{/if}> {l s='Take stock levels from SkladX (SkladX is the source of truth)' mod='skladx'}</label>

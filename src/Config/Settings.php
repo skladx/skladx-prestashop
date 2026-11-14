@@ -69,6 +69,8 @@ final class Settings
     public const PICKUP_PICKER = 'SKLADX_PICKUP_PICKER';
     public const PRODUCT_SYNC = 'SKLADX_PRODUCT_SYNC';
     public const STOCK_SYNC = 'SKLADX_STOCK_SYNC';
+    public const PRODUCT_CHECK = 'SKLADX_PRODUCT_CHECK';
+    public const PRODUCT_CHECK_INTERVAL = 'SKLADX_PRODUCT_CHECK_INTERVAL';
     public const STATUS_MAP = 'SKLADX_STATUS_MAP';
     public const TRACKING_EMAIL = 'SKLADX_TRACKING_EMAIL';
     public const DEBUG = 'SKLADX_DEBUG';
@@ -81,6 +83,10 @@ final class Settings
     public const LAST_POLL = 'SKLADX_LAST_POLL';
     public const LAST_INBOUND_REFRESH = 'SKLADX_LAST_INBOUND_REFRESH';
     public const LAST_PRUNE = 'SKLADX_LAST_PRUNE';
+    public const LAST_PRODUCT_CHECK = 'SKLADX_LAST_PRODUCT_CHECK';
+
+    /** Allowed intervals of the periodic product check, in hours. */
+    public const PRODUCT_CHECK_INTERVALS = [1, 6, 12, 24, 168];
 
     /**
      * Every key with its default (arrays are JSON encoded on save).
@@ -102,6 +108,8 @@ final class Settings
             self::PICKUP_PICKER => 1,
             self::PRODUCT_SYNC => 1,
             self::STOCK_SYNC => 0,
+            self::PRODUCT_CHECK => 1,
+            self::PRODUCT_CHECK_INTERVAL => 24,
             self::STATUS_MAP => self::defaultStatusMap(),
             self::TRACKING_EMAIL => 1,
             self::DEBUG => 0,
@@ -114,6 +122,7 @@ final class Settings
             self::LAST_POLL => 0,
             self::LAST_INBOUND_REFRESH => 0,
             self::LAST_PRUNE => 0,
+            self::LAST_PRODUCT_CHECK => 0,
         ];
     }
 
@@ -299,6 +308,24 @@ final class Settings
     public static function productSyncEnabled(): bool
     {
         return (bool) self::get(self::PRODUCT_SYNC);
+    }
+
+    /**
+     * Periodic product check: on, and product sync on.
+     */
+    public static function productCheckEnabled(): bool
+    {
+        return (bool) self::get(self::PRODUCT_CHECK) && self::productSyncEnabled();
+    }
+
+    /**
+     * Interval of the periodic product check in hours (one of PRODUCT_CHECK_INTERVALS).
+     */
+    public static function productCheckInterval(): int
+    {
+        $hours = (int) self::get(self::PRODUCT_CHECK_INTERVAL);
+
+        return in_array($hours, self::PRODUCT_CHECK_INTERVALS, true) ? $hours : 24;
     }
 
     public static function stockSyncEnabled(): bool

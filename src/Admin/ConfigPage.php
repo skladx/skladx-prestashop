@@ -88,6 +88,9 @@ final class ConfigPage
             'skladx_packeta_key' => Settings::packetaWidgetKey(),
             'skladx_product_sync' => Settings::productSyncEnabled(),
             'skladx_stock_sync' => Settings::stockSyncEnabled(),
+            'skladx_product_check' => (bool) Settings::get(Settings::PRODUCT_CHECK),
+            'skladx_product_check_interval' => Settings::productCheckInterval(),
+            'skladx_last_product_check' => (int) Settings::get(Settings::LAST_PRODUCT_CHECK),
             'skladx_debug' => Settings::debugEnabled(),
             'skladx_log_file' => Logger::file(),
             'skladx_queue_counts' => Queue::counts(),
@@ -201,6 +204,9 @@ final class ConfigPage
         Settings::set(Settings::PACKETA_WIDGET_KEY, trim((string) \Tools::getValue('SKLADX_PACKETA_WIDGET_KEY')));
         Settings::set(Settings::PRODUCT_SYNC, (bool) \Tools::getValue('SKLADX_PRODUCT_SYNC'));
         Settings::set(Settings::STOCK_SYNC, (bool) \Tools::getValue('SKLADX_STOCK_SYNC'));
+        Settings::set(Settings::PRODUCT_CHECK, (bool) \Tools::getValue('SKLADX_PRODUCT_CHECK'));
+        $interval = (int) \Tools::getValue('SKLADX_PRODUCT_CHECK_INTERVAL');
+        Settings::set(Settings::PRODUCT_CHECK_INTERVAL, in_array($interval, Settings::PRODUCT_CHECK_INTERVALS, true) ? $interval : 24);
         Settings::set(Settings::DEBUG, (bool) \Tools::getValue('SKLADX_DEBUG'));
 
         if (!$wasStockSync && Settings::stockSyncEnabled() && StockSync::queuePull()) {

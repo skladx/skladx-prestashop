@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Periodic product check (per shop: on/off and every 1 / 6 / 12 / 24 / 168 hours, default daily): the module cron walks the catalogue without force and sends only products SkladX does not have yet or that changed — catches imports that skip the PrestaShop hooks and failed pushes, so the warehouse can receive new goods a client brings without a receipt.
+
 ## 0.2.0 – 2026-11-10
 
 - Stable `external_id` for every product and combination (`ps:{id_shop}:{id_product}:{id_product_attribute}`), sent with every product upsert and every order item; SkladX matches by `external_id` first, then by SKU, so a changed reference renames the SKU in SkladX.

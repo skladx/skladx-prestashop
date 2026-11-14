@@ -164,28 +164,41 @@ final class ProductSync
     }
 
     /**
+     * Periodic product check (setting per shop: on/off, how often): walks
+     * the catalogue WITHOUT force, so only products SkladX does not have yet
+     * or that changed are sent — e.g. added by an import that skips the
+     * PrestaShop hooks, or whose push failed. The warehouse can then receive
+     * new goods a client brings without a receipt.
+     */
+    public static function queueCheck(): void
+    {
+        Queue::push(Queue::PRODUCTS_ALL, 'check:1', ['after' => 0, 'force' => false]);
+    }
+
+    /**
      * Queue handler for one page of the catalogue.
      *
-     * @param array<string, mixed> $payload `{after: last id_product}`
+     * @param array<string, mixed> $payload `{after: last id_product, force?: bool}`
      */
     public static function syncBatch(array $payload): void
     {
         $after = (int) ($payload['after'] ?? 0);
+        $force = (bool) ($payload['force'] ?? true);
         $rows = \Db::getInstance()->executeS('SELECT `id_product` FROM `' . _DB_PREFIX_ . 'product` WHERE `id_product` > ' . $after . ' ORDER BY `id_product` LIMIT ' . self::BATCH_SIZE, true, false);
         $ids = array_map(static fn (array $row): int => (int) $row['id_product'], is_array($rows) ? $rows : []);
 
         foreach ($ids as $idProduct) {
             try {
-                self::sync($idProduct, false, true);
+                self::sync($idProduct, false, $force);
             } catch (RetryLater $exception) {
                 Queue::push(Queue::PRODUCT_SYNC, (string) $idProduct, [], $exception->delay);
             }
         }
 
         if (count($ids) === self::BATCH_SIZE) {
-            Queue::push(Queue::PRODUCTS_ALL, (string) end($ids), ['after' => end($ids)]);
+            Queue::push(Queue::PRODUCTS_ALL, ($force ? '' : 'check:') . end($ids), ['after' => end($ids), 'force' => $force]);
         } else {
-            Logger::info('Full product sync finished.');
+            Logger::info($force ? 'Full product sync finished.' : 'Periodic product check finished.');
         }
     }
 

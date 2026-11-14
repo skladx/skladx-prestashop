@@ -199,7 +199,7 @@ final class Runner
 
     /**
      * Polling fallback every 10 minutes, receipt refresh every 30 minutes,
-     * cleanup once a day.
+     * the periodic product check as configured, cleanup once a day.
      */
     private static function periodic(): void
     {
@@ -213,6 +213,11 @@ final class Runner
         if ($now - (int) Settings::get(Settings::LAST_INBOUND_REFRESH) >= Receipts::REFRESH_INTERVAL) {
             Settings::set(Settings::LAST_INBOUND_REFRESH, $now);
             Receipts::refresh();
+        }
+
+        if (Settings::productCheckEnabled() && $now - (int) Settings::get(Settings::LAST_PRODUCT_CHECK) >= Settings::productCheckInterval() * 3600) {
+            Settings::set(Settings::LAST_PRODUCT_CHECK, $now);
+            ProductSync::queueCheck();
         }
 
         if ($now - (int) Settings::get(Settings::LAST_PRUNE) >= 86400) {
